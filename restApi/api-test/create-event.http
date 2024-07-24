@@ -1,0 +1,9 @@
+POST http://localhost:8080/events
+content-type: application/json
+Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6Imp5b3Rpc3JAZ21haWwuY29tIiwiZXhwIjoxNzIxODAxMzk2LCJ1c2VySWQiOjB9.mEyF5J2zkCh-MZbnPuvc61uJEWM1re41H1M6cbh8nlY
+{
+    "name":"Pritkjvs",
+    "description":"kjhgfdssdfghjkl",
+    "location":"GKP",
+    "dateTime":"2024-01-01T15:30:00.000Z"
+}
