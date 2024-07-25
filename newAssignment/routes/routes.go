@@ -18,4 +18,9 @@ func RegisterRouter(server *gin.Engine) {
 	server.POST("/author", CreateAuthor)
 	server.GET("/author", ListAuthors)
 	server.DELETE("/author/:id", DeleteAuthor)
+
+	server.POST("/blog", CreateBlog)
+	server.GET("/blog", GetBlog)
+	server.DELETE("/blog/:id", DeleteBlog)
+	server.PUT("/blog/:id", UpdateBlog)
 }
