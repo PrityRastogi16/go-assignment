@@ -2,15 +2,18 @@ package main
 
 import (
 	"newAssignment/db"
+	"newAssignment/inits"
 	"newAssignment/routes"
 
 	"github.com/gin-gonic/gin"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 func main() {
+
+	inits.LoadEnv()
 	db.InitDB()
 	server := gin.Default()
 	routes.RegisterRouter(server)
-	server.Run(":2002") // localhost
+	server.Run(":2002")
+
 }
