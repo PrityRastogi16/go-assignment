@@ -13,6 +13,7 @@ func main() {
 	inits.LoadEnv()
 	db.InitDB()
 	server := gin.Default()
+	server.Static("/uploads", "./uploads")
 	routes.RegisterRouter(server)
 	server.Run(":2002")
 

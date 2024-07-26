@@ -13,7 +13,7 @@ func RegisterRouter(server *gin.Engine) {
 	server.POST("/category", createCategory)
 	server.DELETE("/events/:id/register", middlewares.Authenticate)
 	server.POST("/signup", signup)
-	// server.POST("/login", login)
+	server.POST("/login", Login)
 
 	server.POST("/author", CreateAuthor)
 	server.GET("/author", ListAuthors)

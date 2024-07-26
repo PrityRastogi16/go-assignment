@@ -1,21 +1,64 @@
 package routes
 
 import (
+	"fmt"
 	"net/http"
 	"newAssignment/db"
 	"newAssignment/models"
+	"os"
+	"path/filepath"
 
 	"github.com/gin-gonic/gin"
 )
 
 func CreateBlog(c *gin.Context) {
+	if err := c.Request.ParseMultipartForm(10 << 20); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Unable to parse form"})
+		return
+	}
+
+	// Get file from form
+	file, fileHeader, err := c.Request.FormFile("image")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Unable to get file"})
+		return
+	}
+	defer file.Close()
+
+	// Create a directory to save the image if it doesn't exist
+	imageDir := "./uploads/"
+	if err := os.MkdirAll(imageDir, os.ModePerm); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Unable to create image directory"})
+		return
+	}
+
+	// Save the file
+	filePath := filepath.Join(imageDir, filepath.Base(fileHeader.Filename))
+
+	out, err := os.Create(filePath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Unable to save file"})
+		return
+	}
+	defer out.Close()
+
+	if _, err := out.ReadFrom(file); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Unable to save file"})
+		return
+	}
+
+	// Construct image URL or path
+	imageURL := fmt.Sprintf("image%s", filepath.Base(filePath))
 	var blog models.Blog
-	if err := c.ShouldBindJSON(&blog); err != nil {
+	if err := c.ShouldBind(&blog); err != nil {
+		fmt.Println(err)
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid data"})
 		return
 	}
+	blog.Image = imageURL
 	result := db.DB.Create(&blog)
 	if result.Error != nil {
+		fmt.Println(result.Error)
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to create blog"})
 		return
 	}
