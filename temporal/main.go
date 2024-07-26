@@ -30,7 +30,6 @@ func SendEmailWorkflow(ctx workflow.Context, params EmailParams) error {
 	}
 	return nil
 }
-
 func SendEmailActivity(ctx context.Context, params EmailParams) error {
 	auth := smtp.PlainAuth(
 		"",
@@ -44,7 +43,7 @@ func SendEmailActivity(ctx context.Context, params EmailParams) error {
 		"Subject: " + params.Subject + "\r\n" +
 		"\r\n" +
 		params.Body + "\r\n")
-
+fmt.Println("Sending Email:", params.Body)
 	err := smtp.SendMail("smtp.gmail.com:587", auth, "prityr@moneymul.com", to, msg)
 	if err != nil {
 		log.Printf("Error sending email: %v", err)
