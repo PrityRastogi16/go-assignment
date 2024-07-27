@@ -8,19 +8,20 @@ import (
 
 func RegisterRouter(server *gin.Engine) {
 	// server.GET("/events", getEvents)
+	authenticated := server.Group("/")
+	authenticated.Use(middlewares.Authenticate)
 	server.GET("category", listCategories)
-	server.DELETE("/category/:id", deleteCategory)
-	server.POST("/category", createCategory)
-	server.DELETE("/events/:id/register", middlewares.Authenticate)
+	authenticated.DELETE("/category/:id", deleteCategory)
+	authenticated.POST("/category", createCategory)
 	server.POST("/signup", signup)
 	server.POST("/login", Login)
 
-	server.POST("/author", CreateAuthor)
+	authenticated.POST("/author", CreateAuthor)
 	server.GET("/author", ListAuthors)
-	server.DELETE("/author/:id", DeleteAuthor)
+	authenticated.DELETE("/author/:id", DeleteAuthor)
 
-	server.POST("/blog", CreateBlog)
+	authenticated.POST("/blog", CreateBlog)
 	server.GET("/blog", GetBlog)
-	server.DELETE("/blog/:id", DeleteBlog)
-	server.PUT("/blog/:id", UpdateBlog)
+	authenticated.DELETE("/blog/:id", DeleteBlog)
+	authenticated.PUT("/blog/:id", UpdateBlog)
 }

@@ -10,7 +10,7 @@ import (
 
 func CreateAuthor(c *gin.Context) {
 	var author models.Author
-	if err := c.ShouldBindJSON(&author); err != nil {
+	if err := c.ShouldBind(&author); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid data"})
 		return
 	}

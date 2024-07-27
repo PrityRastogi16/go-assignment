@@ -3,9 +3,9 @@ package utils
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -18,6 +18,20 @@ type TokenResponse struct {
 	TokenType   string `json:"token_type"`
 	ExpiresIn   int    `json:"expires_in"`
 }
+
+type Credentials struct {
+	Type      string `json:"type"`
+	Value     string `json:"value"`
+	Temporary bool   `json:"temporary"`
+}
+
+type KeycloakUser struct {
+	Username    string        `json:"username"`
+	Email       string        `json:"email"`
+	Enabled     bool          `json:"enabled"`
+	Credentials []Credentials `json:"credentials"`
+}
+
 
 func GetToken(grantType, clientID, clientSecret, username, password string) (string, error) {
 	// Keycloak token endpoint
@@ -47,7 +61,7 @@ func GetToken(grantType, clientID, clientSecret, username, password string) (str
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
@@ -106,4 +120,138 @@ func GetKeycloakAuthToken(email, password string) (string, error) {
 	// Return the response body as a string for simplicity
 	return string(loginBody), nil
 
+}
+func CreateKeycloakUser(adminToken, email, password string) bool {
+	apiEndpoint := "/admin/realms/master/users"
+	apiURL := KeyCloakBaseUrl + apiEndpoint
+
+	// Generate random password to store in keycloak
+	// randomPassword := utils.GenerateRandomPassword()
+
+	user := KeycloakUser{
+		Username: email,
+		Email:    email,
+		Enabled:  true,
+		Credentials: []Credentials{
+			{
+				Type:      "password",
+				Value:     password,
+				Temporary: false,
+			},
+		},
+	}
+	jsonData, err := json.Marshal(user)
+
+	if err != nil {
+		fmt.Println("ERROR: failed to marshal user data", err)
+		return false
+	}
+	// Make POST api call to keycloak to create new user in master realm
+	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(jsonData))
+
+	if err != nil {
+		fmt.Println("ERROR: failed to create request", err)
+		return false
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("ERROR: failed to send request", err)
+		return false
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		fmt.Println("ERROR: failed to create user", resp)
+		return false
+	}
+
+	fmt.Println("SUCCESS: User created successfully in keycloak", resp)
+
+	return true
+}
+
+func GetKeycloakUser(adminToken, email string) (string, error) {
+	apiEndpoint := "/admin/realms/master/users"
+	apiURL := KeyCloakBaseUrl + apiEndpoint
+
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		fmt.Println("ERROR: failed to create request", err)
+		return "", err
+	}
+
+	q := req.URL.Query()
+	q.Add("email", email)
+	req.URL.RawQuery = q.Encode()
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", adminToken))
+
+	client := &http.Client{}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("ERROR: failed to make request", err)
+		return "", err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Println("ERROR: failed to get user", resp)
+		return "", errors.New("failed to get user")
+	}
+
+	var users []struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&users); err != nil {
+		fmt.Println("ERROR: failed to decode response", err)
+		return "", err
+	}
+
+	if len(users) == 0 {
+		return "", fmt.Errorf("user not found")
+	}
+	return users[0].ID, nil
+
+}
+
+func GetKeyclaokUserInfo(token string) (map[string]interface{}, error) {
+
+	apiEndpoint := "/realms/master/protocol/openid-connect/userinfo"
+	apiURL := KeyCloakBaseUrl + apiEndpoint
+
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		fmt.Println("ERROR: failed to create request", err)
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	client := &http.Client{}
+
+	resp, err := client.Do(req)
+
+	if err != nil {
+		fmt.Println("ERROR: failed to make request", err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Println("ERROR: failed to get user info", resp)
+		return nil, errors.New("failed to get user")
+	}
+
+	var result map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		fmt.Println("ERROR: failed to decode response body:", err)
+		return nil, err
+	}
+
+	return result, nil
 }

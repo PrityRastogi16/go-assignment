@@ -59,43 +59,113 @@ func CreateKeycloakUser(token string, user models.User) error {
 	return nil
 }
 
-func signup(context *gin.Context) {
+// func signup(context *gin.Context) {
+// 	var user models.User
+// 	err := context.ShouldBindJSON(&user)
+// 	if err != nil {
+// 		context.JSON(http.StatusBadRequest, gin.H{"message": "Could not parse request data"})
+// 		return
+// 	}
+// 	token, _ := utils.GetKeycloakAccessToken("prity", "prity")
+// 	hashedPassword, _ := utils.HashPassword(user.Password)
+// 	user.Password = hashedPassword
+// 	result := db.DB.Create(&user)
+// 	if result.Error != nil {
+// 		context.JSON(http.StatusInternalServerError, gin.H{"message": "User creation failed"})
+// 		return
+// 	}
+// 	loginLink := fmt.Sprintf("https://your-app.com/login?token=%s", token)
+// 	grantType := "password"
+// 	clientID := "client-credentials-test-client"
+// 	clientSecret := "PtygUYw4wU9zhwaIr60jDJArxH9TjZVA"
+// 	username := "prity"
+// 	password := "prity"
+// 	keyCloakToken, _ := utils.GetToken(grantType, clientID, clientSecret, username, password)
+// 	fmt.Println("*****", keyCloakToken, "******")
+// 	err = CreateKeycloakUser(keyCloakToken, user)
+// 	if err != nil {
+// 		context.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to create user in Keycloak"})
+// 		return
+// 	}
+
+//		// Email body with login link
+//		emailBody := fmt.Sprintf("Thank you for registering with us! , Click the link below to login:\n%s\n", loginLink)
+//		err = utils.TriggerEmailWorkflow(user.Email, "Welcome to Our Service", emailBody)
+//		if err != nil {
+//			context.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to send registration email"})
+//			return
+//		}
+//		context.JSON(http.StatusCreated, gin.H{"message": "User created Succesfully"})
+//	}
+func signup(c *gin.Context) {
+
 	var user models.User
-	err := context.ShouldBindJSON(&user)
+
+	err := c.ShouldBindJSON(&user)
+
 	if err != nil {
-		context.JSON(http.StatusBadRequest, gin.H{"message": "Could not parse request data"})
-		return
-	}
-	token, _ := utils.GenerateToken(user.Email, user.ID)
-	hashedPassword, _ := utils.HashPassword(user.Password)
-	user.Password = hashedPassword
-	result := db.DB.Create(&user)
-	if result.Error != nil {
-		context.JSON(http.StatusInternalServerError, gin.H{"message": "User creation failed"})
-		return
-	}
-	loginLink := fmt.Sprintf("https://your-app.com/login?token=%s", token)
-	grantType := "password"
-	clientID := "client-credentials-test-client"
-	clientSecret := "PtygUYw4wU9zhwaIr60jDJArxH9TjZVA"
-	username := "prity"
-	password := "prity"
-	keyCloakToken, _ := utils.GetToken(grantType, clientID, clientSecret, username, password)
-	fmt.Println("*****", keyCloakToken, "******")
-	err = CreateKeycloakUser(keyCloakToken, user)
-	if err != nil {
-		context.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to create user in Keycloak"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Could not paser request body."})
 		return
 	}
 
-	// Email body with login link
-	emailBody := fmt.Sprintf("Thank you for registering with us! , Click the link below to login:\n%s\n", loginLink)
-	err = utils.TriggerEmailWorkflow(user.Email, "Welcome to Our Service", emailBody)
-	if err != nil {
-		context.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to send registration email"})
+	// Check if email already exist
+	isUserAlreadyExist := db.DB.Where("email = ?", user.Email).Find(&user)
+
+	if isUserAlreadyExist.RowsAffected > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "User with this email already exists.",
+		})
 		return
 	}
-	context.JSON(http.StatusCreated, gin.H{"message": "User created Succesfully"})
+
+	providedPassword := user.Password
+
+	// Hash password
+	hashedPassword, err := utils.HashPassword(user.Password)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		return
+	}
+	// Update User password with hashed password
+	user.Password = hashedPassword
+
+	// Get keycloak admin token
+	keyCloakAdminTokenResp, err := utils.GetKeycloakAccessToken("prity", "prity")
+	fmt.Println(keyCloakAdminTokenResp, err, "88888")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Keycloak admin token"})
+		return
+	}
+
+	accessToken := keyCloakAdminTokenResp.AccessToken
+
+	status := utils.CreateKeycloakUser(accessToken, user.Email, providedPassword)
+	if !status {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create Keycloak user"})
+		return
+	}
+
+	// Store user in DB
+	result := db.DB.Create(&user)
+
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error})
+		return
+	}
+
+	emailBody := "Thank you for registering with us! , Click the link below to login"
+	err = utils.TriggerEmailWorkflow(user.Email, "Welcome to Our Service", emailBody)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to send registration email"})
+		return
+	}
+	userResponse := models.UserResponse{
+		ID:    user.ID,
+		Email: user.Email,
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message": "User registered!", "user": userResponse})
 }
 
 func Login(c *gin.Context) {
@@ -129,14 +199,21 @@ func Login(c *gin.Context) {
 	output, _ := utils.GetKeycloakAuthToken(user.Email, user.Password)
 	fmt.Println(output)
 	// Generate token
-	token, err := utils.GenerateToken(existingUser.Email, existingUser.ID)
+	keyCloakAdminTokenResp, err := utils.GetKeycloakAccessToken(user.Email, user.Password)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Keycloak admin token"})
+		return
+	}
+
+	accessToken := keyCloakAdminTokenResp.AccessToken
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Login successful!", "token": token})
+	c.JSON(http.StatusOK, gin.H{"message": "Login successful!", "accessToken": accessToken})
 
 }
 

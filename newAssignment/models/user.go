@@ -2,9 +2,14 @@ package models
 
 type User struct {
 	ID       uint   `gorm:"primaryKey"`
-	name     string `gorm:"not null"`
 	Email    string `gorm:"unique;not null"`
 	Password string `gorm:"not null"`
+}
+
+type UserResponse struct {
+	ID    uint   `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
 }
 
 // func (u *User) Save() error {
