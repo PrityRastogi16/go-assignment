@@ -7,10 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"net/url"
-	"regexp"
-	"strings"
 )
 
 type TokenResponse struct {
@@ -34,7 +31,8 @@ type KeycloakUser struct {
 
 func GetToken(grantType, clientID, clientSecret, username, password string) (string, error) {
 	// Keycloak token endpoint
-	tokenURL := "http://localhost:8080/realms/master/protocol/openid-connect/token"
+	apiEndpoint := "/realms/master/protocol/openid-connect/token"
+	tokenURL := KeyCloakBaseUrl + apiEndpoint
 	data := map[string]string{
 		"grant_type":    grantType,
 		"client_id":     clientID,
@@ -71,54 +69,6 @@ func GetToken(grantType, clientID, clientSecret, username, password string) (str
 	}
 
 	return tokenResponse.AccessToken, nil
-}
-
-func GetKeycloakAuthToken(email, password string) (string, error) {
-	baseURL := "http://localhost:8080"
-	authURL := baseURL + "/realms/master/protocol/openid-connect/auth?client_id=client-credentials-test-client&redirect_uri=http://localhost:2002/&response_type=code&scope=openid"
-	jar, _ := cookiejar.New(nil)
-	client := &http.Client{Jar: jar}
-
-	// Step 1: Get the login form
-	resp, err := client.Get(authURL)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	// Step 2: Extract action URL using regex
-	re := regexp.MustCompile(`action="([^"]+)"`)
-	matches := re.FindStringSubmatch(string(body))
-	if len(matches) < 2 {
-		return "", fmt.Errorf("action URL not found")
-	}
-	actionURL := matches[1]
-	actionURL = strings.Replace(actionURL, "&amp;", "&", -1)
-
-	// Step 3: Submit the login form
-	formData := url.Values{
-		"username": {email},
-		"password": {password},
-	}
-	loginResp, err := client.PostForm(actionURL, formData)
-	if err != nil {
-		return "", err
-	}
-	defer loginResp.Body.Close()
-
-	loginBody, err := io.ReadAll(loginResp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	// Return the response body as a string for simplicity
-	return string(loginBody), nil
-
 }
 func CreateKeycloakUser(adminToken, email, password string) bool {
 	apiEndpoint := "/admin/realms/master/users"
@@ -258,10 +208,11 @@ func GetKeyclaokUserInfo(token string) (map[string]interface{}, error) {
 // InvalidateKeycloakToken invalidates the user's token in Keycloak
 func InvalidateKeycloakToken(token string) error {
 	// Construct the Keycloak logout URL
-	logoutURL := "http://localhost:8080/realms/master/protocol/openid-connect/logout"
+	apiEndpoint := "/realms/master/protocol/openid-connect/logout"
+	logoutURL := KeyCloakBaseUrl + apiEndpoint
 
 	formData := url.Values{}
-	formData.Set("access_token", token)
+	formData.Set("refresh_token", token)
 
 	formData.Set("client_id", "client-credentials-test-client")
 	formData.Set("client_secret", "PtygUYw4wU9zhwaIr60jDJArxH9TjZVA")

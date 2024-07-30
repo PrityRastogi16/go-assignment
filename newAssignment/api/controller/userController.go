@@ -83,5 +83,5 @@ func LogoutController(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, "Logout Successfully")
+	c.JSON(http.StatusOK, gin.H{"message": "Logout Successfully"})
 }

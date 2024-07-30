@@ -41,6 +41,7 @@ type TokenResponse struct {
 func LoginBusiness(user models.User) (services.TokenResponse, error) {
 	return services.LoginService(user)
 }
+
 func LogoutBusiness(token string) error {
 	return services.LogoutService(token)
 }
