@@ -41,7 +41,7 @@ func InitDB() {
 }
 
 func MigrateDB() {
-	err := DB.AutoMigrate(&models.User{}, &models.Category{}, &models.Author{}, &models.Blog{})
+	err := DB.AutoMigrate(&models.User{}, &models.Category{}, &models.Author{}, &models.Blog{}, &models.VerificationToken{})
 	if err != nil {
 		panic("Failed to migrate database: " + err.Error())
 	} else {

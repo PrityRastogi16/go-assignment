@@ -32,7 +32,6 @@ type KeycloakUser struct {
 	Credentials []Credentials `json:"credentials"`
 }
 
-
 func GetToken(grantType, clientID, clientSecret, username, password string) (string, error) {
 	// Keycloak token endpoint
 	tokenURL := "http://localhost:8080/realms/master/protocol/openid-connect/token"
@@ -255,3 +254,81 @@ func GetKeyclaokUserInfo(token string) (map[string]interface{}, error) {
 
 	return result, nil
 }
+
+// InvalidateKeycloakToken invalidates the user's token in Keycloak
+func InvalidateKeycloakToken(token string) error {
+	// Construct the Keycloak logout URL
+	logoutURL := "http://localhost:8080/realms/master/protocol/openid-connect/logout"
+
+	formData := url.Values{}
+	formData.Set("access_token", token)
+
+	formData.Set("client_id", "client-credentials-test-client")
+	formData.Set("client_secret", "PtygUYw4wU9zhwaIr60jDJArxH9TjZVA")
+
+	req, err := http.NewRequest("POST", logoutURL, bytes.NewBufferString(formData.Encode()))
+	if err != nil {
+		return fmt.Errorf("failed to create logout request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("error during logout request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to invalidate token: status code %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// func CreateKeycloakUser(token string, user models.User) error {
+// 	url := "http://localhost:8080/admin/realms/master/users"
+
+// 	userData := map[string]interface{}{
+// 		"username":      user.Email,
+// 		"email":         user.Email,
+// 		"enabled":       true,
+// 		"emailVerified": false,
+// 		"firstName":     "FirstName",
+// 		"lastName":      "LastName",
+// 		"credentials": []map[string]interface{}{
+// 			{
+// 				"type":      "password",
+// 				"value":     "user-password",
+// 				"temporary": false,
+// 			},
+// 		},
+// 	}
+
+// 	jsonData, err := json.Marshal(userData)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	req.Header.Set("Content-Type", "application/json")
+// 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+
+// 	client := &http.Client{}
+// 	resp, err := client.Do(req)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer resp.Body.Close()
+
+// 	if resp.StatusCode != http.StatusCreated {
+// 		return fmt.Errorf("failed to create user in keycloak, status code: %d", resp.StatusCode)
+// 	}
+
+// 	return nil
+// }
